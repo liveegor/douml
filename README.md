@@ -1,6 +1,6 @@
-Built from tag: 1.0b6
+Built from tag: 1.0b7
 
-DoUML version 1.0b6
+DoUML version 1.0b7
 ==================
 
 *** IMPORTANT NOTICE ***
@@ -119,7 +119,7 @@ Enchancements:
 
    * A totally new control can be brought up by pressing Ctlr-E on tree nodes. See changelog.txt for details. (section 1.0b4) 
       
-      Manual
+Manual
 ------
 
   Currently - the manual of Bouml version 4.22 is being used. To access it, set "Manual" path in
@@ -127,17 +127,28 @@ Enchancements:
 
 Compiling
 ---------
-    L_UniversalModels library needs to be built prior to douml compilation. It is located in src/Libs/L_UniversalModels
+
+#### Under Linux:
+  
+ * dependencies: libqt4-dev, libqt4-qt3support, libboost-dev, libfile-fcntllock-perl, vim-common, g++ (>=4.7)
+ * `make`
+ * `make install` default directory is ${PWD}/install or `make install LOCAL_DESTDIR=[path]`
     
-  * Under Windows:
-      * Mingw based on gcc 4.7+
-      * Qt 4.7+ built with aforementioned mingw.
-      * Boost's headers of version 1.5+ must be visible in scope.
+  
+#### Under Windows:
+
+  ```
+  L_UniversalModels library needs to be built prior to douml compilation. It is located in src/Libs/L_UniversalModels
+  ```
+
+ * Mingw based on gcc 4.7+
+ * Qt 4.7+ built with aforementioned mingw.
+ * Boost's headers of version 1.5+ must be visible in scope.
 
 	
 Webpage
 -------
-  http://sourceforge.net/projects/DoUML/
+  http://sourceforge.net/projects/douml/
 
 Contact email: 
 -------------

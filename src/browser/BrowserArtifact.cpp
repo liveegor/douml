@@ -128,7 +128,6 @@ BrowserNode * BrowserArtifact::duplicate(BrowserNode * p, QString name)
 
     result->set_name((name.isEmpty()) ? get_name() : name);
     result->update_stereotype();
-
     return result;
 }
 
@@ -152,7 +151,7 @@ void BrowserArtifact::prepare_update_lib() const
         ((BrowserNode *) child)->prepare_update_lib();
 }
 
-void BrowserArtifact::referenced_by(Q3PtrList<BrowserNode> & l, bool ondelete)
+void BrowserArtifact::referenced_by(QList<BrowserNode *> & l, bool ondelete)
 {
     BrowserNode::referenced_by(l, ondelete);
     compute_referenced_by(l, this);
@@ -161,7 +160,7 @@ void BrowserArtifact::referenced_by(Q3PtrList<BrowserNode> & l, bool ondelete)
         BrowserDeploymentDiagram::compute_referenced_by(l, this, "artifactcanvas", "artifact_ref");
 }
 
-void BrowserArtifact::compute_referenced_by(Q3PtrList<BrowserNode> & l,
+void BrowserArtifact::compute_referenced_by(QList<BrowserNode *> & l,
         BrowserClass * target)
 {
     IdIterator<BrowserArtifact> it(all);
@@ -176,7 +175,7 @@ void BrowserArtifact::compute_referenced_by(Q3PtrList<BrowserNode> & l,
     }
 }
 
-void BrowserArtifact::compute_referenced_by(Q3PtrList<BrowserNode> & l,
+void BrowserArtifact::compute_referenced_by(QList<BrowserNode *> & l,
         BrowserArtifact * target)
 {
     IdIterator<BrowserArtifact> it(all);

@@ -1528,7 +1528,6 @@ void delete_backup(QDir & d)
     QFileInfoList l = d.entryInfoList(s);
 
     if (!l.empty()) {
-        //Q3PtrListIterator<QFileInfo> it(l);
         QFileInfoList::iterator it = l.begin(); //[lgfreitas] above iterator was not working.
         //QFileInfo fi;
 
@@ -3014,7 +3013,7 @@ void set_last_used_directory(QString s)
 
 unsigned api_format(bool useTrueFormat)
 {
-    QSettings settings("settings.ini", QSettings::IniFormat);
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "DoUML", "settings");
     settings.setIniCodec(QTextCodec::codecForName("UTF-8"));
     int compat = settings.value("Main/compatibility_save").toInt();
     if((compat != 1) || useTrueFormat)

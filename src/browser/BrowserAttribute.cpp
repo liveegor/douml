@@ -97,7 +97,8 @@ BrowserNode * BrowserAttribute::duplicate(BrowserNode * p, QString name)
 {
     BrowserAttribute * result = new BrowserAttribute(this, p);
 
-    if (name.isEmpty()) {
+    if (name.isEmpty())
+    {
         result->set_name(get_name());
         result->def->replace((BrowserClass *) parent(), (BrowserClass *) p);
     }
@@ -105,6 +106,8 @@ BrowserNode * BrowserAttribute::duplicate(BrowserNode * p, QString name)
         result->set_name(name);
 
     result->update_stereotype();
+    //move(result, this);
+    //result->select_in_browser();
 
     return result;
 }
@@ -113,6 +116,11 @@ BrowserAttribute::~BrowserAttribute()
 {
     all.remove(get_ident());
     delete def;
+}
+
+uint BrowserAttribute::TypeID()
+{
+    return TypeIdentifier<BrowserAttribute>::id();
 }
 
 void BrowserAttribute::clear(bool old)
@@ -369,8 +377,12 @@ void BrowserAttribute::exec_menu_choice(int rank)
         break;
 
     case 6:
-        ((BrowserClass *) parent())->duplicate_attribute(this);
+    {
+        BrowserNode * attrDuplicate = ((BrowserClass *) parent())->duplicate_attribute(this);
+        move(attrDuplicate, this);
+        attrDuplicate->select_in_browser();
         return;
+    }
 
     case 7:
         ReferenceDialog::show(this);
@@ -459,6 +471,7 @@ void BrowserAttribute::modified()
 {
     repaint();
     ((BrowserNode *) parent())->modified();
+    def->modified();
 
     if (get_oper != 0)
         update_get_oper();
@@ -521,7 +534,7 @@ void BrowserAttribute::member_cpp_def(const QString & prefix, const QString &,
     }
 }
 
-void BrowserAttribute::compute_referenced_by(Q3PtrList<BrowserNode> & l,
+void BrowserAttribute::compute_referenced_by(QList<BrowserNode *> & l,
         BrowserNode * target)
 {
     IdIterator<BrowserAttribute> it(all);
@@ -538,7 +551,7 @@ void BrowserAttribute::compute_referenced_by(Q3PtrList<BrowserNode> & l,
     }
 }
 
-void BrowserAttribute::referenced_by(Q3PtrList<BrowserNode> & l, bool ondelete)
+void BrowserAttribute::referenced_by(QList<BrowserNode *> & l, bool ondelete)
 {
     BrowserNode::referenced_by(l, ondelete);
 

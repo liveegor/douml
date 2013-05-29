@@ -769,6 +769,30 @@ void OperationData::set_return_type(const AType & t)
     return_type.explicit_type = t.explicit_type;
 }
 
+void OperationData::set_return_type(const QString &value)
+{
+    QStringList list;
+    BrowserNodeList nodes;
+    BrowserClass::instances(nodes);
+    nodes.full_names(list);
+
+//    oper->set_param_dir(index, (UmlParamDirection) DirList.findIndex(text(index, 0)));
+
+//    oper->set_param_name(index, text(index, 1).stripWhiteSpace());
+
+    AType t;
+    if (!value.isEmpty())
+    {
+        int rank = list.findIndex(value);
+
+        if (rank != -1)
+            t.type = (BrowserClass *) nodes.at(rank);
+        else
+            t.explicit_type = value;
+    }
+    return_type = t;
+}
+
 const char * OperationData::get_param_name(int rank) const
 {
     return params[rank]->get_name();
@@ -3376,7 +3400,7 @@ void OperationData::save(QTextStream & st, bool ref, QString & warning) const
         if (cpp_const)
             st << "const ";
 
-        QSettings settings("settings.ini", QSettings::IniFormat);
+        QSettings settings(QSettings::IniFormat, QSettings::UserScope, "DoUML", "settings");
         settings.setIniCodec(QTextCodec::codecForName("UTF-8"));
         if(settings.value("Main/compatibility_save").toInt() != 1)
         {
@@ -3564,10 +3588,10 @@ OperationData * OperationData::read_ref(char *& st)
 
 void OperationData::read(char *& st, char *& k)
 {
-    cpp_body.length = -1;
-    java_body.length = -1;
-    python_body.length = -1;
-    php_body.length = -1;
+    cpp_body.length = 0;
+    java_body.length = 0;
+    python_body.length = 0;
+    php_body.length = 0;
 
     k = read_keyword(st);
     BasicData::read(st, k);	// updates k
@@ -3945,18 +3969,24 @@ void OperationData::read(char *& st, char *& k)
 }
 bool operator==(const OperationData & origin, const OperationData & another)
 {
-    bool paramsResult = false;
-//    if(origin.params.isEmpty() && another.params.isEmpty())
-//        paramsResult = true;
-//    else if(origin.params != another.params)
-//    {
-//        if(origin.params.isEmpty())
-//            return false;
-//        else if(another.params.isEmpty() == nullptr)
-//            return false;
-//         paramsResult = *origin.params == *another.params;
-//    }
-    paramsResult = origin.params == another.params;
+    bool paramsResult = true;
+
+    if(origin.params.size() != another.params.size())
+        paramsResult = false;
+    else
+    {
+        int i = -1;
+        auto it = origin.params.begin();
+        while(it != origin.params.end())
+        {
+            it++;i++;
+            if(*origin.params[i].get() == *another.params[i].get() )
+                continue;
+            paramsResult = false;
+            break;
+        }
+    }
+
     if(!paramsResult)
         return false;
     if(origin.uml_visibility != another.uml_visibility ||
@@ -4030,11 +4060,27 @@ bool operator==(const OperationData & origin, const OperationData & another)
 
 
 }
-
+#include <algorithm>
 bool PropagationEquality(const OperationData & origin, const OperationData & another)
 {
-    bool paramsResult = false;
-    paramsResult = origin.params != another.params;
+    bool paramsResult = true;
+
+    if(origin.params.size() != another.params.size())
+        paramsResult = false;
+    else
+    {
+        int i = -1;
+        auto it = origin.params.begin();
+        while(it != origin.params.end())
+        {
+            it++;i++;
+            if(*origin.params[i].get() == *another.params[i].get() )
+                continue;
+            paramsResult = false;
+            break;
+        }
+    }
+    //origin.params != another.params;
 
     if(!paramsResult)
         return false;
@@ -4067,7 +4113,7 @@ bool PropagationEquality(const OperationData & origin, const OperationData & ano
     origin.cpp_body.offset!= another.cpp_body.offset ||
     origin.cpp_body.length!= another.cpp_body.length ||
     origin.cpp_decl!= another.cpp_decl ||
-    origin.cpp_def!= another.cpp_def ||
+    //origin.cpp_def!= another.cpp_def ||
     origin.cpp_name_spec!= another.cpp_name_spec||
 
 

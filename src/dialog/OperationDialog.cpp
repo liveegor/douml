@@ -115,8 +115,9 @@ OperationDialog::~OperationDialog()
 //        oper->browser_node->edit_end();
     previous_size = size();
 
-    while (!edits.isEmpty())
-        edits.take(0)->close();
+    foreach (BodyDialog *dialog, edits)
+        dialog->close();
+    edits.clear();
 
     if(toolbar)
     {
@@ -2133,11 +2134,13 @@ void OperationDialog::cpp_def_from_decl()
             index1 = index2;
         }
     }
-//    if(!oper->is_abstract)
-//    {
+
         QList<UserTag> failedTags;
         for(auto tag : tags)
         {
+            //we remove all instances of the tag that might have been left
+            def = def.replace(QString("@{") + tag.tag + QString("}"), "");
+
             //first we try to find left context in the new definition
             QRegExp rx(QRegExp::escape(tag.leftContext));
             int index = rx.indexIn(def);
@@ -2165,7 +2168,7 @@ void OperationDialog::cpp_def_from_decl()
                 tagString.chop(1);
             QMessageBox::critical(0, tr("Warning!"), tr("Could not find correct place for these tags: " + tagString), QMessageBox::Ok);
         }
-    //}
+
 
     // update def
     cppTab->ui->edCppDefProto->setText(def);
@@ -3235,6 +3238,7 @@ void OperationDialog::post_php_edit_body(OperationDialog * d, QString s)
 
 bool OperationDialog::SaveData()
 {
+
     BrowserClass* containingClass = static_cast<BrowserClass*>(oper->browser_node->get_container(UmlClass));
     QList<BrowserNode *>  passedNodes;
     bool goBack = true;
@@ -3244,9 +3248,11 @@ bool OperationDialog::SaveData()
     OperationData* operCopy = new OperationData(oper, (BrowserOperation*)oper->get_browser_node());
 
     SaveData(operCopy);
-    bool equals = *oper == *operCopy;
+    bool equals = *oper == *operCopy && kvtable->EqualData(static_cast<HaveKeyValueData*>(oper->browser_node));
     bool newst = operCopy->set_stereotype(fromUnicode(edstereotype->currentText().stripWhiteSpace()));
     delete operCopy;
+    if(equals)
+        return true;
 
     if(!inheritanceSiblings.isEmpty() && !equals)
     {
@@ -3282,9 +3288,10 @@ bool OperationDialog::SaveData()
             inheritanceSiblings = containingClass->CollectSameThroughInheritance(oper,passedNodes, goBack);
         }
     }
+    kvtable->updateNodeFromThis(oper->get_browser_node());
     SaveData(oper);
     // user
-    kvtable->updateNodeFromThis(oper->get_browser_node());
+
 
     ProfiledStereotypes::modified(oper->get_browser_node(), newst);
 

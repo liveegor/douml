@@ -16,6 +16,7 @@
 #include "browser/BrowserOperationAttribute.h"
 #include "browserfunctions/operationfuncs.h"
 #include "browser/BrowserExtraMember.h"
+#include "tool/snippets.h"
 #include "GenerationSettings.h"
 #include "AttributeData.h"
 #include "BrowserView.h"
@@ -110,9 +111,6 @@ void QuickEdit::PerformFiltering(QStringList expandedNodes, QTreeView* view, Tre
 
 void QuickEdit::OnContextMenu(QPoint point)
 {
-
-    CreateMenu();
-
     QModelIndex current = ui->tvEditor->selectionModel()->currentIndex();
     if(!current.isValid())
         return;
@@ -120,9 +118,16 @@ void QuickEdit::OnContextMenu(QPoint point)
     current = current.sibling(current.row(), 0);
     TreeItemInterface *itemAsInterface = static_cast<TreeItemInterface*>(current.internalPointer());
     BrowserNode* currentNode = static_cast<BrowserNode*>(itemAsInterface->InternalPointer());
-
-    if(currentNode->TypeID()  !=  TypeIdentifier<BrowserOperationAttribute>::id())
+    if(!itemAsInterface)
         return;
+
+    CreateMenu();
+    SetupMenu(itemAsInterface);
+    if(currentNode->TypeID()  !=  TypeIdentifier<BrowserOperationAttribute>::id())
+    {
+        contextMenu->removeAction(actBefore);
+        contextMenu->removeAction(actAfter);
+    }
 
     contextMenu->popup(ui->tvEditor->mapToGlobal(point));
 }
@@ -143,6 +148,11 @@ void QuickEdit::OnAddParameter()
 void QuickEdit::OnAddOperation()
 {
     AddOperation();
+}
+
+void QuickEdit::OnAddAttribute()
+{
+    AddAttribute();
 }
 
 void QuickEdit::OnPerformFiltering(QString)
@@ -189,20 +199,62 @@ void QuickEdit::OnRefreshTable()
     RefreshTable();
 }
 
+void QuickEdit::OnCollapseExpandSelf()
+{
+    QModelIndex index = ui->tvEditor->currentIndex();
+    if(index.isValid())
+        CollapseExpand(index.sibling(index.row(), 0));
+}
+
+void QuickEdit::OnCollapseExpandParent()
+{
+    QModelIndex index = ui->tvEditor->currentIndex();
+    index = index.parent();
+    if(index.isValid())
+        CollapseExpand(index.sibling(index.row(), 0));
+}
+
 void QuickEdit::CreateMenu()
 {
-    if(contextMenu.isNull())
-    {
-        contextMenu.reset(new QMenu());
-    }
+    if(!contextMenu.isNull())
+        return;
+
+    contextMenu.reset(new QMenu());
+    collapseExpandMenu = new QMenu();
+    collapseExpandMenu->setTitle(tr("Collapse/Expand"));
+    actCollapseExpandSelf = new QAction(tr("Self"), this);
+    actCollapseExpandParent = new QAction(tr("Parent"), this);
+    contextMenu->addSeparator();
+    actBefore = new QAction(tr("Move marked before"), this);
+    actAfter = new QAction(tr("Move marked after"), this);
+
+    connect(actBefore, SIGNAL(triggered()), this, SLOT(OnMoveMarkedBefore()));
+    connect(actAfter, SIGNAL(triggered()), this, SLOT(OnMoveMarkedAfter()));
+    connect(actCollapseExpandSelf, SIGNAL(triggered()), this, SLOT(OnCollapseExpandSelf()));
+    connect(actCollapseExpandParent, SIGNAL(triggered()), this, SLOT(OnCollapseExpandParent()));
+}
+
+void QuickEdit::SetupMenu(TreeItemInterface * interface)
+{
     contextMenu->clear();
-    QAction* before = contextMenu->addAction(tr("Move marked before"), this, SLOT(OnMoveMarkedBefore()));
-    QAction* after = contextMenu->addAction(tr("Move marked after"), this, SLOT(OnMoveMarkedAfter()));
+    collapseExpandMenu->addAction(actCollapseExpandSelf);
+    collapseExpandMenu->addAction(actCollapseExpandParent);
+    contextMenu->addMenu(collapseExpandMenu);
+    contextMenu->addSeparator();
+    contextMenu->addAction(actBefore);
+    contextMenu->addAction(actAfter);
+
     if(BrowserNode::marked_nodes().count() == 0)
     {
-        before->setEnabled(false);
-        after->setEnabled(false);
+        actBefore->setEnabled(false);
+        actAfter->setEnabled(false);
     }
+    else
+    {
+        actBefore->setEnabled(true);
+        actAfter->setEnabled(true);
+    }
+    interface->childCount() == 0 ? actCollapseExpandSelf->setEnabled(false) : actCollapseExpandSelf->setEnabled(true);
 }
 
 void QuickEdit::SetupItemCreationFuncs()
@@ -323,7 +375,7 @@ void QuickEdit::AddOperation()
     BrowserClass* classNode;
 
     int newItemPosition = 0;
-    if(currentNode->TypeID()  == TypeIdentifier<BrowserClass>::id()) //, TypeIdentifier<BrowserOperation>())
+    if(currentNode->TypeID()  == TypeIdentifier<BrowserClass>::id())
     {
         classNode = static_cast<BrowserClass*>(currentNode);
         newItemPosition = itemAsInterface->childCount();
@@ -341,6 +393,8 @@ void QuickEdit::AddOperation()
     if(!classNode)
         return;
     BrowserOperation* newOperation = static_cast<BrowserOperation*>(classNode->addOperation());
+    classNode->move(newOperation, currentNode);
+    classNode->select_in_browser();
     QModelIndex parentIndex;
     TreeItemInterface* parent;
     if(treeModel->parent(current).isValid())
@@ -366,13 +420,85 @@ void QuickEdit::AddOperation()
     newItemAsNode->SetController(operationController);
     newItemAsNode->SetParent(sharedOfOperation);
     newItemAsNode->SetInternalData(newOperation);
-    //classNode->modified();
+}
+
+void QuickEdit::AddAttribute()
+{
+    QModelIndex current = ui->tvEditor->selectionModel()->currentIndex();
+    if(!current.isValid())
+        return;
+
+    current = current.sibling(current.row(), 0);
+    TreeItemInterface *itemAsInterface = static_cast<TreeItemInterface*>(current.internalPointer());
+    BrowserNode* currentNode = static_cast<BrowserNode*>(itemAsInterface->InternalPointer());
+
+    BrowserClass* classNode;
+
+    int newItemPosition = 0;
+    if(currentNode->TypeID()  == TypeIdentifier<BrowserClass>::id())
+    {
+        classNode = static_cast<BrowserClass*>(currentNode);
+        if(!classNode)
+            return;
+        newItemPosition = itemAsInterface->childCount();
+    }
+    else if(currentNode->TypeID() *in(TypeIdentifier<BrowserOperation>::id() ,TypeIdentifier<BrowserAttribute>::id())
+            && current.parent().isValid())
+    {
+        itemAsInterface = static_cast<TreeItemInterface*>(current.parent().internalPointer());
+        classNode = static_cast<BrowserClass*>(itemAsInterface->InternalPointer());
+        newItemPosition = current.row()+1;
+        current = current.parent();
+    }
+    else
+        return;
+
+    //classNode->addOperation()
+    BrowserAttribute* newAttribute;
+    if(QString(classNode->get_stereotype()) == "enum")
+        newAttribute = static_cast<BrowserAttribute*>(classNode->addEnumItem());
+    else
+        newAttribute = static_cast<BrowserAttribute*>(classNode->addAttribute());
+    classNode->move(newAttribute, currentNode);
+    classNode->select_in_browser();
+    QModelIndex parentIndex;
+    TreeItemInterface* parent;
+    if(treeModel->parent(current).isValid())
+    {
+        parentIndex = treeModel->parent(current);
+        parentIndex = parentIndex.sibling(parentIndex.row(), 0);
+        parent =  static_cast<TreeItemInterface*>(parentIndex.internalPointer());
+    }
+    else
+        parent = treeModel->RootItem();
+
+    int insertIndex = parent->GetIndexOfChild(itemAsInterface);
+
+    QSharedPointer<TreeItemInterface> sharedOfNode =  parent->GetChildren()[insertIndex];
+
+    if(!treeModel->insertRows(newItemPosition, 1, current))
+        return;
+
+    if(!current.isValid())
+        return;
+
+    QModelIndex newItem = treeModel->index(newItemPosition,0,current);
+    TreeItemInterface *newItemInterface = static_cast<TreeItemInterface*>(newItem.internalPointer());
+    TreeItem<BrowserNode>* newItemAsNode = static_cast<TreeItem<BrowserNode>*>(newItemInterface);
+    newItemAsNode->SetController(attributeController);
+    newItemAsNode->SetParent(sharedOfNode);
+    newItemAsNode->SetInternalData(newAttribute);
 }
 
 void QuickEdit::RefreshTable()
 {
     if(currentNode)
         Show(currentNode);
+}
+
+void QuickEdit::CollapseExpand(const QModelIndex &index)
+{
+    ui->tvEditor->setExpanded(index, !ui->tvEditor->isExpanded(index));
 }
 
 BrowserNode *QuickEdit::GetCurrentNode()
@@ -456,18 +582,18 @@ void QuickEdit::Init(UmlWindow* window, BrowserView* view)
     SetupTreeModel(treeModel,ui->tvEditor,rootInterface,classController,modelRoot);
     ui->tvEditor->setContextMenuPolicy(Qt::CustomContextMenu);
 
-    //ui->tvEditor->setStyleSheet("QTreeView::item { border-right: 1px solid black }");
     ui->tvEditor->setAlternatingRowColors(true);
     connect(ui->tvEditor, SIGNAL(customContextMenuRequested(QPoint)),this, SLOT(OnContextMenu(QPoint)));
     connect(ui->leSearch, SIGNAL(textChanged(QString)), this, SLOT(OnPerformFiltering(QString)));
     connect(ui->pbUpOneLevel, SIGNAL(clicked()), this, SLOT(OnDecreaseOpenLevels()));
     connect(ui->pbDownOneLevel, SIGNAL(clicked()), this, SLOT(OnIncreaseOpenLevels()));
-    connect(ui->pbAddAttribute, SIGNAL(clicked()), this, SLOT(OnAddParameter()));
+    connect(ui->pbAddParameter, SIGNAL(clicked()), this, SLOT(OnAddParameter()));
     connect(ui->pbAddOperation, SIGNAL(clicked()), this, SLOT(OnAddOperation()));
+    connect(ui->pbAddAttribute, SIGNAL(clicked()), this, SLOT(OnAddAttribute()));
     connect(ui->pbRefreshView, SIGNAL(clicked()), this, SLOT(OnRefreshTable()));
     connect(ui->chkCpp, SIGNAL(clicked()), this, SLOT(OnChangeColumnVisibility()));
-    connect(ui->tvEditor->header(), SIGNAL(sectionResized(int,int,int)),
-            this, SLOT(OnNewSectionSizes(int,int,int)));
+//    connect(ui->tvEditor->header(), SIGNAL(sectionResized(int,int,int)),
+//            this, SLOT(OnNewSectionSizes(int,int,int)));
 }
 
 void QuickEdit::Show(BrowserNode * node)
@@ -494,7 +620,7 @@ void QuickEdit::Show(BrowserNode * node)
     };
 
     TreeFunctions::ExpandAllSatisfying<TreeItemInterface>(check, ui->tvEditor, treeModel, QModelIndex());
-    QSettings settings("settings.ini", QSettings::IniFormat);
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "DoUML", "settings");
     settings.setIniCodec(QTextCodec::codecForName("UTF-8"));
     QByteArray arr = settings.value("headers/quickedit", QByteArray()).toByteArray();
     if(!arr.isNull())
@@ -519,9 +645,19 @@ void QuickEdit::Show(BrowserNode * node)
 
 }
 
+bool QuickEdit::ValidType(BrowserNode * node)
+{
+    if(!node)
+        return false;
+    UmlCode nodeType = node->get_type();
+    if(!validTypes.contains(nodeType))
+        return false;
+    return true;
+}
+
 void QuickEdit::closeEvent(QCloseEvent *)
 {
-    QSettings settings("settings.ini", QSettings::IniFormat);
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "DoUML", "settings");
     settings.setIniCodec(QTextCodec::codecForName("UTF-8"));
     if(ui->tvEditor->header()->count() > 0)
     {
@@ -538,7 +674,6 @@ void QuickEdit::closeEvent(QCloseEvent *)
     else
         settings.setValue("window/size",QSize());
     ui->leSearch->setText("");
-    localNodeHolder.clear();
 }
 
 QSharedPointer<TreeItemInterface> QuickEdit::CreateInterfaceNode(QSharedPointer<TreeItemInterface> root,

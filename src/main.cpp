@@ -57,11 +57,6 @@
 #include "ui/constructorinitializerdialog.h"
 #include "misc/TypeIdentifier.h"
 #include <QSettings>
-#include <QFileInfo>
-
-
-
-
 #include "translate.h"
 
 bool ExitOnError = FALSE;
@@ -71,6 +66,7 @@ int main(int argc, char ** argv)
     ExitOnError = FALSE;
 
     QApplication a(argc, argv);
+    a.setWindowIcon(QIcon(QString(":/douml.64.png")));
 
     QTextCodec::setCodecForCStrings(QTextCodec::codecForName("UTF-8"));
 
@@ -86,7 +82,7 @@ int main(int argc, char ** argv)
     logger.addDestination(debugDestination.get());
     logger.addDestination(fileDestination.get());
     QLOG_INFO() << "Starting the log";
-//#endif
+//#endif /* DEBUG */
 
 
     An<EdgeMenuFactory> factory;
@@ -99,34 +95,45 @@ int main(int argc, char ** argv)
     factory->AddFactory(TypeIdentifier<ConstructorInitializerDialog>::id(), CreateLimitedDialogMenu);
     factory->AddConnectionFunctorQt4(TypeIdentifier<ConstructorInitializerDialog>::id(), ConnectToLimitedDialog<EdgeMenuDialogQt4>);
 
-
     UmlDesktop::init();
-    QSettings settings("settings.ini", QSettings::IniFormat);
+
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "DoUML", "settings");
     settings.setIniCodec(QTextCodec::codecForName("UTF-8"));
+    QFileInfo info(settings.fileName());
+    bool conv_env = !info.exists();
+    if(conv_env)
+    {
+      settings.setIniCodec(QTextCodec::codecForName("UTF-8"));
+      settings.setValue("/test", "test");
+      settings.setValue("Main/compatibility_save", "1");
+      settings.setValue("Main/fileformat", "77");
+      settings.setValue("Main/encoding", "UTF-8");
+      settings.setValue("Failing_Tools/Tools", "Import Rose,Uml projection,C++ state machine,Generate XMI 1.2,Generate .pro");
+      //settings.setValue("headers/quickedit", 0);
+      settings.setValue("quickedit_checkboxes/cpp", "true");
+      settings.setValue("quickedit_checkboxes/java", "false");
+      settings.setValue("quickedit_checkboxes/php", "false");
+      settings.setValue("quickedit_checkboxes/python", "false");
+      settings.setValue("quickedit_checkboxes/idl", "false");
+      settings.setValue("window/size", QSize(927, 595));
+      settings.sync();
+    }
+
     bool overridePresent = QFileInfo("override_transition.txt").exists();
     if(settings.value("Main/compatibility_save") .toInt() == 1 && !overridePresent)
     {
-    QMessageBox::warning(0, QObject::tr("Warning"),
-                         QObject::tr("Douml is working in transitional mode.\n All UI improvements are yours to use,  "
-                                     "but saving is done in the format of Bouml 4.22 "
-                                     "which loses all new c++11 and hierarchy specifiers\n\n"
-                                     "To suppress this warning place empty file override_transition.txt into the application folder\n"
-                                     "To disable the mode - change compatibility_save parameter to 0 in settings.ini\n"));
+      QMessageBox::warning(0, QObject::tr("Warning"),
+         QObject::tr("Douml is working in transitional mode.\n All UI improvements are yours to use,  "
+                     "but saving is done in the format of Bouml 4.22 "
+                     "which loses all new c++11 and hierarchy specifiers\n\n"
+                     "To suppress this warning place empty file override_transition.txt into the application folder\n"
+                     "To disable the mode - change compatibility_save parameter to 0 in settings.ini\n"));
     }
 
-    // note : bool conv_env = !QDir::home().exists(".doumlrc") doesn't work
-    // if the path contains non latin1 characters, for instance cyrillic !
-    QString s = QDir::home().absFilePath(".doumlrc");
-    FILE * fp = fopen((const char *) s, "r");
-    bool conv_env = (fp == 0);
-
-
     if (conv_env)
-        EnvDialog::edit(TRUE);
-    else
-        fclose(fp);
+       EnvDialog::edit(TRUE);
 
-    read_doumlrc();	// for virtual desktop
+    read_doumlrc(); // for virtual desktop
     init_pixmaps();
     init_font();
     Shortcut::init(conv_env);

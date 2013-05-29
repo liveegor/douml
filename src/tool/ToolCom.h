@@ -48,8 +48,8 @@ class ToolCom  : public QObject
     Q_OBJECT
 
 protected:
-    static Q3PtrList<ToolCom> used;
-    static Q3PtrList<ToolCom> unused;
+    static QList<ToolCom *> used;
+    static QList<ToolCom *> unused;
     static int exitvalue;
 
     bool start;
@@ -89,7 +89,7 @@ protected:
 
 public:
     unsigned api_format(bool trueFormat = false) const {
-        QSettings settings("settings.ini", QSettings::IniFormat);
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "DoUML", "settings");
         settings.setIniCodec(QTextCodec::codecForName("UTF-8"));
         if((settings.value("Main/compatibility_save") .toInt() != 1) || trueFormat)
             return api_version;

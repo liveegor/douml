@@ -145,7 +145,8 @@ BrowserNode * BrowserOperation::duplicate(BrowserNode * p, QString n)
 
     result->set_name(n);
     result->update_stereotype();
-
+    //move(result, this);
+    //result->select_in_browser();
     return result;
 }
 
@@ -218,7 +219,7 @@ bool BrowserOperation::delete_internal(QString &)
     is_deleted = TRUE;
 
     if (is_marked) {
-        marked_list.removeRef(this);
+        marked_list.remove(this);
         is_marked = FALSE;
     }
 
@@ -232,7 +233,7 @@ void BrowserOperation::AddConstructorInitalizer()
 {
     ConstructorInitializerDialog ciDialog;
     BrowserClass* container = static_cast<BrowserClass*>(get_container(UmlClass));
-    Q3PtrList<BrowserNode> parents = container->parents();
+    QList<BrowserNode *> parents = container->parents();
     QString initializerDummy(" : ");
     for(BrowserNode* parent : parents)
     {
@@ -585,7 +586,7 @@ void BrowserOperation::paintCell(QPainter * p, const QColorGroup & cg, int colum
     }
 }
 
-static Q3PtrList<BrowserNode> ImplBy;
+static QList<BrowserNode *> ImplBy;
 static const int add_constructor_initializer = 35;
 static const int go_up = 36;
 
@@ -663,10 +664,9 @@ void BrowserOperation::menu()
                 MenuFactory::createTitle(implbym, TR("Choose behavior"));
                 implbym.insertSeparator();
 
-                BrowserNode * beh;
                 int rank = 10000;
 
-                for (beh = ImplBy.first(); beh != 0; beh = ImplBy.next())
+                foreach (BrowserNode * beh, ImplBy)
                     implbym.insertItem(beh->full_name(TRUE), rank);
             }
 
@@ -706,7 +706,11 @@ void BrowserOperation::exec_menu_choice(int rank)
 
     case 1:
         if ((get_of == 0) && (set_of == 0))
-            ((BrowserClass *) parent())->duplicate_operation(this);
+        {
+            BrowserNode * operDuplicate = ((BrowserClass *) parent())->duplicate_operation(this);
+            move(operDuplicate, this);
+            operDuplicate->select_in_browser();
+        }
 
         ImplBy.clear();
         return;
@@ -945,7 +949,7 @@ void BrowserOperation::member_cpp_def(const QString & prefix,
     }
 }
 
-void BrowserOperation::compute_referenced_by(Q3PtrList<BrowserNode> & l,
+void BrowserOperation::compute_referenced_by(QList<BrowserNode *> & l,
                                              BrowserClass * target)
 {
     IdIterator<BrowserOperation> it(all);
@@ -958,7 +962,7 @@ void BrowserOperation::compute_referenced_by(Q3PtrList<BrowserNode> & l,
     }
 }
 
-void BrowserOperation::referenced_by(Q3PtrList<BrowserNode> & l, bool ondelete)
+void BrowserOperation::referenced_by(QList<BrowserNode *> & l, bool ondelete)
 {
     BrowserNode::referenced_by(l, ondelete);
 
@@ -998,16 +1002,14 @@ bool BrowserOperation::tool_cmd(ToolCom * com, const char * args)
         return TRUE;
 
     case sideCmd: {
-        Q3PtrList<BrowserNode> l;
+        QList<BrowserNode *> l;
 
         BrowserActivity::compute_referenced_by(l, this);
         BrowserState::compute_referenced_by(l, this);
 
         com->write_unsigned(l.count());
 
-        BrowserNode * bn;
-
-        for (bn = l.first(); bn != 0; bn = l.next())
+        foreach (BrowserNode * bn, l)
             bn->write_id(com);
     }
 

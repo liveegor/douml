@@ -47,7 +47,6 @@
 #endif
 #include <q3whatsthis.h>
 #include <qapplication.h>
-#include <q3filedialog.h>
 #include <qfileinfo.h>
 #include <qwindowsstyle.h>
 #include <qmotifstyle.h>
@@ -60,6 +59,7 @@
 #include <QLabel>
 #include <QKeyEvent>
 #include <QStyle>
+#include <QFileDialog>
 //#include <qcdestyle.h>
 //#include <qsgistyle.h>
 
@@ -106,6 +106,7 @@
 #include "browsersearch.xpm"
 #include "misc/ClipboardManager.h"
 #include "ui/catalogwidget.h"
+#include "tool/snippets.h"
 #include <QClipboard>
 #include <QApplication>
 #include <QShortcut>
@@ -123,10 +124,6 @@ void set_template_project(QString s)
 {
     TemplateProject = s;
 }
-
-//
-
-static int Counter;
 
 UmlWindow * UmlWindow::the;
 
@@ -239,16 +236,17 @@ static QString completionText()
 
 QToolButton *
 CreateToolButton(
-    QPixmap icon,
-    QWidget * receiver,
-    const char * boundslot,
-    QToolBar * parent,
-    QString shown)
+        QPixmap icon,
+        QWidget * receiver,
+        const char * boundslot,
+        QToolBar * parent,
+        QString shown)
 {
     QToolButton * newButton = new QToolButton();
     QObject::connect(newButton, SIGNAL(clicked()), receiver, boundslot);
     newButton->setIcon(icon);
     newButton->setText(shown);
+    newButton->setToolTip(shown);
     newButton->setMinimumSize(30, 30);
     parent->addWidget(newButton);
     return newButton;
@@ -279,47 +277,54 @@ UmlWindow::UmlWindow(bool ) : QMainWindow(0, "DoUML", Qt::WDestructiveClose)
 
     openIcon = QPixmap(fileopen);
     QToolButton * projectOpen
-        = CreateToolButton(openIcon,
-                           this, SLOT(load()), projectTools, "open project");
+            = CreateToolButton(openIcon,
+                               this, SLOT(load()), projectTools, "open project");
 
     saveIcon = QPixmap(filesave);
     QToolButton * projectSave
-        = CreateToolButton(saveIcon,
-                           this, SLOT(save()), projectTools, "save project");
+            = CreateToolButton(saveIcon,
+                               this, SLOT(save()), projectTools, "save project");
 
 #ifndef QT_NO_PRINTER
     QPixmap printIcon;
 
     printIcon = QPixmap(fileprint);
     QToolButton * diagramPrint
-        = CreateToolButton(printIcon,
-                           this, SLOT(print()), projectTools, "print diagram");
+            = CreateToolButton(printIcon,
+                               this, SLOT(print()), projectTools, "print diagram");
     Q3WhatsThis::add(diagramPrint, diagramPrintText());
 #endif
 
     QPixmap searchIcon = QPixmap(browsersearch);
     QToolButton * browserSearch
-        = CreateToolButton(searchIcon,
-                           this, SLOT(browser_search()), projectTools, "browser search");
+            = CreateToolButton(searchIcon,
+                               this, SLOT(browser_search()), projectTools, "browser search");
     Q3WhatsThis::add(browserSearch, browserSearchText());
 
 
 
 
-    prev = CreateToolButton(*leftPixmap,
-                            this, SLOT(prev_select()), projectTools, "previous selected");
+    prev = CreateToolButton(*leftPixmap,  this, SLOT(prev_select()), projectTools, "previous selected");
     Q3WhatsThis::add(prev, prevText());
 
-    next = CreateToolButton(*rightPixmap,
-                            this, SLOT(next_select()), projectTools, "next selected");
+    next = CreateToolButton(*rightPixmap, this, SLOT(next_select()), projectTools, "next selected");
     Q3WhatsThis::add(next, nextText());
 
 
     Q3WhatsThis::add(projectOpen, projectOpenText());
     Q3WhatsThis::add(projectSave, projectSaveText());
+
+    tbClipboard = CreateToolButton(QIcon(":/root/icons/date_empty.png").pixmap(),
+                                   this, SLOT(OnCallClipboardMenu()), projectTools, "Call clipboard");
+    tbQuickEdit = CreateToolButton(QIcon(":/root/icons/photo_edit.png").pixmap(),
+                                   this, SLOT(OnShowQuickEdit()), projectTools, "Call QuickEdit window(Ctrl-E)");
+    tbQuickEdit->setEnabled(false);
+
     QToolButton * whatsThisButton
-        = CreateToolButton(QApplication::style()->standardIcon(QStyle::SP_TitleBarContextHelpButton).pixmap(),
-                           this, SLOT(whats_this()), projectTools, "Whats's this?");
+            = CreateToolButton(QApplication::style()->standardIcon(QStyle::SP_TitleBarContextHelpButton).pixmap(),
+                               this, SLOT(whats_this()), projectTools, "Whats's this?");
+
+
 
     generateLabel = new QLabel(tr("Generate:"));
     QFont font = generateLabel->font();
@@ -352,38 +357,38 @@ UmlWindow::UmlWindow(bool ) : QMainWindow(0, "DoUML", Qt::WDestructiveClose)
             this, SLOT(langMenuAboutToShow()));
 
     use_cpp_id =
-        langMenu->insertItem(TR("C++ management and default declaration/definition"), this, SLOT(use_cpp()));
+            langMenu->insertItem(TR("C++ management and default declaration/definition"), this, SLOT(use_cpp()));
     langMenu->setItemChecked(use_cpp_id, GenerationSettings::cpp_get_default_defs());
     langMenu->setWhatsThis(use_cpp_id, cppText());
     use_java_id =
-        langMenu->insertItem(TR("Java management and default definition"), this, SLOT(use_java()));
+            langMenu->insertItem(TR("Java management and default definition"), this, SLOT(use_java()));
     langMenu->setItemChecked(use_java_id, GenerationSettings::java_get_default_defs());
     langMenu->setWhatsThis(use_java_id, javaText());
     use_php_id =
-        langMenu->insertItem(TR("Php management and default definition"), this, SLOT(use_php()));
+            langMenu->insertItem(TR("Php management and default definition"), this, SLOT(use_php()));
     langMenu->setItemChecked(use_php_id, GenerationSettings::php_get_default_defs());
     langMenu->setWhatsThis(use_php_id, phpText());
     use_python_id =
-        langMenu->insertItem(TR("Python management and default definition"), this, SLOT(use_python()));
+            langMenu->insertItem(TR("Python management and default definition"), this, SLOT(use_python()));
     langMenu->setItemChecked(use_python_id, GenerationSettings::python_get_default_defs());
     langMenu->setWhatsThis(use_python_id, pythonText());
     use_idl_id =
-        langMenu->insertItem(TR("Idl management and default declaration"), this, SLOT(use_idl()));
+            langMenu->insertItem(TR("Idl management and default declaration"), this, SLOT(use_idl()));
     langMenu->setItemChecked(use_idl_id, GenerationSettings::idl_get_default_defs());
     langMenu->setWhatsThis(use_idl_id, idlText());
 
     langMenu->insertSeparator();
     verbose_gen_id =
-        langMenu->insertItem(TR("Verbose code generation"), this, SLOT(verbose()));
+            langMenu->insertItem(TR("Verbose code generation"), this, SLOT(verbose()));
     langMenu->setWhatsThis(verbose_gen_id, verboseText());
 
     preserve_bodies_id =
-        langMenu->insertItem(TR("Preserve operations's body"), this, SLOT(preserve()));
+            langMenu->insertItem(TR("Preserve operations's body"), this, SLOT(preserve()));
     langMenu->setWhatsThis(preserve_bodies_id, preserve_bodiesText());
 
     add_operation_profile_id =
-        langMenu->insertItem(TR("Add operation profile on body edition"), this,
-                             SLOT(addoperationprofile()));
+            langMenu->insertItem(TR("Add operation profile on body edition"), this,
+                                 SLOT(addoperationprofile()));
     langMenu->setWhatsThis(add_operation_profile_id, add_operation_profileText());
 
     miscMenu = new Q3PopupMenu(this);
@@ -393,14 +398,14 @@ UmlWindow::UmlWindow(bool ) : QMainWindow(0, "DoUML", Qt::WDestructiveClose)
             this, SLOT(miscMenuAboutToShow()));
 
     show_browser_stereotypes_id =
-        miscMenu->insertItem(TR("Show s&tereotypes in browser"), this,
-                             SLOT(show_stereotypes()));
+            miscMenu->insertItem(TR("Show s&tereotypes in browser"), this,
+                                 SLOT(show_stereotypes()));
     miscMenu->setItemChecked(show_browser_stereotypes_id, TRUE);
     miscMenu->setWhatsThis(show_browser_stereotypes_id, viewBrowserStereotypeText());
 
     completion_id =
-        miscMenu->insertItem(TR("Completion in dialog"), this,
-                             SLOT(do_completion()));
+            miscMenu->insertItem(TR("Completion in dialog"), this,
+                                 SLOT(do_completion()));
 
 
     miscMenu->setItemChecked(completion_id, TRUE);
@@ -456,14 +461,14 @@ UmlWindow::UmlWindow(bool ) : QMainWindow(0, "DoUML", Qt::WDestructiveClose)
     miscMenu->insertSeparator();
 
     shortcut_id =
-        miscMenu->insertItem(TR("Edit shortcuts"), this, SLOT(edit_shortcuts()));
+            miscMenu->insertItem(TR("Edit shortcuts"), this, SLOT(edit_shortcuts()));
 
     menuBar()->insertSeparator();
 
     miscMenu->insertItem(TR("Set environment"), this, SLOT(edit_env()));
 
     img_root_dir_id =
-        miscMenu->insertItem(TR("Set images root dir"), this, SLOT(edit_image_root_dir()));
+            miscMenu->insertItem(TR("Set images root dir"), this, SLOT(edit_image_root_dir()));
 
     Q3PopupMenu * help = new Q3PopupMenu(this);
     menuBar()->insertItem(TR("&Help"), help);
@@ -484,6 +489,7 @@ UmlWindow::UmlWindow(bool ) : QMainWindow(0, "DoUML", Qt::WDestructiveClose)
     wdgCatalog = new CatalogWidget;
     quickEdit = new QuickEdit();
     browser = new BrowserView();
+    connect(browser, SIGNAL(currentChanged(Q3ListViewItem*)), this, SLOT(OnChooseQuickEditMode(Q3ListViewItem*)));
 
     wdgCatalog->Init(this, browser);
     connect(wdgCatalog, SIGNAL(markedRemove(QString,int)), browser, SLOT(OnUnmarkItem(QString,int)));
@@ -491,6 +497,7 @@ UmlWindow::UmlWindow(bool ) : QMainWindow(0, "DoUML", Qt::WDestructiveClose)
 
 
     quickEdit->Init(this, browser);
+    quickEdit->setWindowFlags(Qt::WindowStaysOnTopHint);
     sh1 = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_E),this, SLOT(OnShowQuickEdit()),SLOT(OnShowQuickEdit()), Qt::ApplicationShortcut);
 
 
@@ -556,41 +563,24 @@ UmlWindow::UmlWindow(bool ) : QMainWindow(0, "DoUML", Qt::WDestructiveClose)
     //
     // read historic
     //
-
-    // note : QFile fp(QDir::home().absFilePath(".douml")) doesn't work
-    // if the path contains non latin1 characters, for instance cyrillic !
-    QString s = homeDir().absFilePath(".douml");
-    FILE * fp = fopen((const char *) s, "r");
-
-    if (fp != 0) {
-        char line[512];
-
-        while (fgets(line, sizeof(line) - 1, fp) != 0) {
-            remove_crlf(line);
-
-            if (!strncmp(line, "compteur d utilisation ", 23)) {
-                Counter = atoi(line + 23);
-                break;
-            }
-            else
-                historic.append(line);
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "DoUML", "settings");
+    settings.setIniCodec(QTextCodec::codecForName("UTF-8"));
+    settings.beginGroup("Recent_Files");
+    for(int i = 1; i <= 10; ++i)
+    {
+        const QString line = settings.value(tr("File%1").arg(i)).toString();
+        if(!line.isEmpty())
+        {
+            historic.append(line);
         }
-
-        fclose(fp);
+        else
+        {
+            break;
+        }
     }
-
-    // and do not enable it back
-    //    if (!batch && ((Counter++ % 30) == 0)) {
-    //        GreetingsDialog d;
-
-    //        d.exec();
-    //    }
-
-    //
+    settings.endGroup();
 
     clear_select_historic();
-
-    //
 
     statusBar()->message(TR("Ready"), 2000);
 }
@@ -712,14 +702,12 @@ void UmlWindow::projectMenuAboutToShow()
         // historic
 
         projectMenu->insertSeparator();
-        QString whats = TR("to open this project.<br><br>The historic is saved in <i>%1</i>",
-                           homeDir().absFilePath(".douml"));
 
         for (int i(0); i < historic.size(); ++i)
         {
             id = projectMenu->insertItem(historic.at(i), this, SLOT(historicActivated(int)));
             projectMenu->setItemParameter(id, i);
-            projectMenu->setWhatsThis(id, whats);
+            projectMenu->setWhatsThis(id, TR("to open this project.<br><br>The historic is saved in <i>settings.ini</i>"));
         }
     }
     else
@@ -860,7 +848,7 @@ void UmlWindow::set_commented(BrowserNode * bn)
         UmlWindow * him = the;
         bool same = (him->commented == bn);
 
-        the = 0;	// to do nothing in comment_changed() which is called
+        the = 0;    // to do nothing in comment_changed() which is called
 
         him->commented = bn;
 
@@ -891,7 +879,7 @@ void UmlWindow::update_comment_if_needed(BrowserNode * bn)
 void UmlWindow::comment_changed()
 {
     if ((the != 0) && (the->commented != 0) &&
-        (the->commented->get_comment() != the->comment->text())) {
+            (the->commented->get_comment() != the->comment->text())) {
         the->commented->set_comment(the->comment->text());
         the->commented->modified();
         the->commented->package_modified();
@@ -926,35 +914,36 @@ void UmlWindow::set_images_root_dir(QString s)
 void UmlWindow::newProject()
 {
     abort_line_construction();
+    if (BrowserNode::edition_active())
+        return;
 
-    if (!BrowserNode::edition_active()) {
-        close();
+    close();
+    if (browser->get_project() == 0) {
+        QString f = QFileDialog::getSaveFileName(
+                    this,
+                    tr("Enter a folder name, this folder will be created and will name the new project"),
+                    last_used_directory());
 
-        if (browser->get_project() == 0) {
-            QString f = Q3FileDialog::getSaveFileName(last_used_directory(), "*", this,
-                        0, TR("Enter a folder name, this folder will be created and will name the new project"));
+        if (!f.isEmpty()) {
+            set_last_used_directory(f);
 
-            if (!f.isEmpty()) {
-                set_last_used_directory(f);
+            QDir di;
 
-                QDir di;
+            if (di.mkdir(f)) {
+                di.cd(f);
+                browser->set_project(di);
+                Tool::defaults();
+                browser->get_project()->BrowserPackage::save_all(FALSE);
 
-                if (di.mkdir(f)) {
-                    di.cd(f);
-                    browser->set_project(di);
-                    Tool::defaults();
-                    browser->get_project()->BrowserPackage::save_all(FALSE);
-
-                    msg_warning(TR("New project"),
-                                TR("Do not forget to set the target languages list\n"
-                                   "through the 'Languages' menu\n"
-                                   "\n"
-                                   "If you program in Java, the Java Catalog plug-out\n"
-                                   "will help you, use it !"));
-                }
-                else
-                    msg_critical(TR("New project"), TR("Cannot create directory ") + f);
+                msg_warning(TR("New project"),
+                            TR("Do not forget to set the target languages list\n"
+                               "through the 'Languages' menu\n"
+                               "\n"
+                               "If you program in Java, the Java Catalog plug-out\n"
+                               "will help you, use it !"));
             }
+            else
+                msg_critical(TR("New project"), TR("Cannot create directory ") + f);
         }
     }
 }
@@ -977,7 +966,8 @@ void UmlWindow::load()
         close();
 
         if (browser->get_project() == 0) {
-            QString fn = Q3FileDialog::getOpenFileName(last_used_directory(), "*.prj", this);
+            QString fn = QFileDialog::getOpenFileName(
+                        this, tr("Select BoUML project file"), last_used_directory(), QLatin1String("*.prj"));
 
             if (!fn.isEmpty()) {
                 set_last_used_directory(fn);
@@ -1002,25 +992,22 @@ void UmlWindow::historic_add(QString fn)
 
     the->historic.prepend(fn);
 
-    // note : QFile fp(QDir::home().absFilePath(".douml")) doesn't work
-    // if the path contains non latin1 characters, for instance cyrillic !
-    QString s = homeDir().absFilePath(".douml");
-    FILE * fp = fopen((const char *) s, "w");
-
-    if (fp != 0) {
-        int rank;
-
-        for (it = the->historic.begin(), rank = 0;
-             (it != the->historic.end()) && (rank != 10);
-             ++it, rank += 1) {
-            (void) fputs((const char *) *it, fp);
-            fputc('\n', fp);
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "DoUML", "settings");
+    settings.setIniCodec(QTextCodec::codecForName("UTF-8"));
+    settings.beginGroup("Recent_Files");
+    for(int i = 0; i < 10; i++)
+    {
+        QString s;
+        if(i < the->historic.size())
+        {
+            settings.setValue(tr("File%1").arg(i+1), the->historic.at(i));
         }
-
-        fprintf(fp, "compteur d utilisation %d\n", Counter);
-
-        fclose(fp);
+        else
+        {
+            break;
+        }
     }
+    settings.endGroup();
 }
 
 void UmlWindow::load_it()
@@ -1057,7 +1044,7 @@ void UmlWindow::load(QString fn, bool forcesaveas)
     int nameLength = fi.fileName().length();
     QString filename = fi.fileName().left(nameLength - (nameLength - pos));
 
-    //s.truncate(s.length() - 4);	// QFileInfo::baseName remove all after first dot
+    //s.truncate(s.length() - 4);   // QFileInfo::baseName remove all after first dot
 
     if (di.dirName() != filename) {
         msg_critical("Uml",
@@ -1112,7 +1099,7 @@ void UmlWindow::load(QString fn, bool forcesaveas)
                     "A <i>save-as</i> is forced now to save the result "
                     "in a new project, then the project will be closed");
         saveAs();
-        close_it();		// write access of added items not ok
+        close_it();     // write access of added items not ok
     }
     else if (format < 22) {
         QString new_st = GenerationSettings::new_java_enums();
@@ -1124,8 +1111,8 @@ void UmlWindow::load(QString fn, bool forcesaveas)
 
         if (!new_st.isEmpty())
             m = "The class stereotype <i>enum_pattern</i> is renamed <i>" + new_st +
-                "</i>and the classes having the stereotype <i>enum_pattern</i> have now the stereotype <i>" +
-                new_st + "</i><br><br>" + m;
+                    "</i>and the classes having the stereotype <i>enum_pattern</i> have now the stereotype <i>" +
+                    new_st + "</i><br><br>" + m;
 
         if (must_save_as)
             m += "A <i>save-as</i> is forced now to save the result in a new project";
@@ -1190,82 +1177,92 @@ void UmlWindow::saveAs()
 
 bool UmlWindow::saveas_it()
 {
-    if (the->browser->get_project() && !BrowserNode::edition_active()) {
-        for (;;) {
-            QString f = Q3FileDialog::getSaveFileName(last_used_directory(), "*", the,
-                        0, TR("Enter a folder name, this folder will be created and will name the new project"));
+    if (!the->browser->get_project() || BrowserNode::edition_active())
+        return false;
 
-            if (!f.isEmpty()) {
-                set_last_used_directory(f);
+    for (;;) {
+        QString f = QFileDialog::getSaveFileName(
+                    the,
+                    tr("Enter a folder name, this folder will be created and will name the new project"),
+                    last_used_directory());
 
-                QDir d(f);
+        if (!f.isEmpty()) {
+            set_last_used_directory(f);
 
-                if (d.dirName() == "empty")
-                    msg_critical("Error", TR("'empty' is reserved to the empty plug-out"));
-                else {
-                    QDir di;
+            QDir d(f);
 
-                    while (!di.mkdir(f)) {
-                        if (msg_critical("Error", TR("Cannot create directory\n") + f,
-                                         QMessageBox::Retry, QMessageBox::Abort)
+            if (d.dirName() == "empty")
+                msg_critical("Error", TR("'empty' is reserved to the empty plug-out"));
+            else {
+                QDir di;
+
+                while (!di.mkdir(f)) {
+                    if (msg_critical("Error", TR("Cannot create directory\n") + f,
+                                     QMessageBox::Retry, QMessageBox::Abort)
                             != QMessageBox::Retry) {
-                            if (!strcmp(the->browser->get_project()->get_name(), "empty"))
-                                exit(0);
+                        if (!strcmp(the->browser->get_project()->get_name(), "empty"))
+                            exit(0);
 
-                            return FALSE;
-                        }
+                        return false;
                     }
-
-                    QApplication::setOverrideCursor(::Qt::waitCursor);
-                    di.cd(f);
-                    the->ws->hide();
-
-                    if (the->browser->save_as(di))
-                        BrowserPackage::save_all(FALSE);
-
-                    the->ws->show();
-                    QApplication::restoreOverrideCursor();
-                    the->setCaption("DoUML : " + f);
-                    return TRUE;
                 }
-            }
-            else if (!strcmp(the->browser->get_project()->get_name(), "empty"))
-                exit(0);
-            else
-                return FALSE;
-        }
-    }
 
-    return FALSE;
+                QApplication::setOverrideCursor(::Qt::waitCursor);
+                di.cd(f);
+                the->ws->hide();
+
+                if (the->browser->save_as(di))
+                    BrowserPackage::save_all(FALSE);
+
+                the->ws->show();
+                QApplication::restoreOverrideCursor();
+                the->setCaption("DoUML : " + f);
+                return true;
+            }
+        }
+        else if (!strcmp(the->browser->get_project()->get_name(), "empty"))
+            exit(0);
+        else
+            return false;
+    }
+    return false;
 }
 
 
 bool UmlWindow::can_close()
 {
     BrowserPackage * packagePtr = browser->get_project();
+    if(!packagePtr)
+        return true;
+    bool mustBeSaved = BrowserPackage::must_be_saved();
+    if(!mustBeSaved)
+        return true;
 
-    if (packagePtr) {
-        bool mustBeSaved = BrowserPackage::must_be_saved();
 
-        if (mustBeSaved) {
-            int result = msg_warning("DoUML", TR("The project is modified, save it ?\n"),
-                                     QMessageBox::Yes, QMessageBox::No, QMessageBox::Cancel);
+    if (mustBeSaved)
+    {
+        int result = msg_warning("DoUML", TR("The project is modified, save it ?\n"),
+                                 QMessageBox::Yes, QMessageBox::No, QMessageBox::Cancel);
 
-            switch (result) {
-            case QMessageBox::Yes:
-                ws->hide();
-                BrowserPackage::save_all(TRUE);
-                ws->show();
-                break;
+        switch (result)
+        {
+        case QMessageBox::Yes:
+            ws->hide();
+            BrowserPackage::save_all(TRUE);
+            ws->show();
+            break;
 
-            case QMessageBox::Cancel:
-                statusBar()->message(TR("Close aborted"), 2000);
-                return FALSE;
-            }
+        case QMessageBox::No:
+            statusBar()->message(TR("Close aborted"), 2000);
+            return true;
+        case QMessageBox::Cancel:
+        {
+            statusBar()->message(TR("Close aborted"), 2000);
+            return false;
+        }
         }
     }
-
-    return TRUE;
+    return true;
 }
 
 void UmlWindow::set_marked_generation()
@@ -1289,9 +1286,10 @@ void UmlWindow::close()
     abort_line_construction();
     bool editionActive = !BrowserNode::edition_active();
     bool canClose = can_close();
-
     if (editionActive && canClose)
+    {
         close_it();
+    }
 }
 
 void UmlWindow::do_close()
@@ -1300,9 +1298,11 @@ void UmlWindow::do_close()
         the->close();
 }
 
-void UmlWindow::closeEvent(QCloseEvent *)
+void UmlWindow::closeEvent(QCloseEvent *e)
 {
     quit();
+    if(!quitConfirmed)
+        e->ignore();
 #if 0
 
     if (can_close()) {
@@ -1359,16 +1359,21 @@ void UmlWindow::quit()
 {
     abort_line_construction();
 
-    if (!BrowserNode::edition_active() && can_close()) {
+    bool canClose = true;
+    bool editionActive = false;
+    if ((editionActive = BrowserNode::edition_active() == false) && (canClose = can_close()) == true)
+    {
         if (browser->get_project() != 0) {
             save_session();
             BrowserView::remove_temporary_files();
             // delete lock
             set_user_id(-1);
         }
-
+        quitConfirmed = true;
         QApplication::exit(0);
+        return;
     }
+    quitConfirmed = canClose;
 }
 
 void UmlWindow::do_quit()
@@ -1698,27 +1703,27 @@ void UmlWindow::use_idl()
 
 bool UmlWindow::using_cpp()
 {
-   return GenerationSettings::cpp_get_default_defs();
+    return GenerationSettings::cpp_get_default_defs();
 }
 
 bool UmlWindow::using_java()
 {
-   return GenerationSettings::java_get_default_defs();
+    return GenerationSettings::java_get_default_defs();
 }
 
 bool UmlWindow::using_php()
 {
-   return GenerationSettings::php_get_default_defs();
+    return GenerationSettings::php_get_default_defs();
 }
 
 bool UmlWindow::using_python()
 {
-   return GenerationSettings::python_get_default_defs();
+    return GenerationSettings::python_get_default_defs();
 }
 
 bool UmlWindow::using_idl()
 {
-   return GenerationSettings::idl_get_default_defs();
+    return GenerationSettings::idl_get_default_defs();
 }
 
 void UmlWindow::verbose()
@@ -1799,9 +1804,8 @@ void UmlWindow::edit_env()
 
 void UmlWindow::edit_image_root_dir()
 {
-    QString s =
-        Q3FileDialog::getExistingDirectory(img_root_dir, 0, 0,
-                                           TR("Select images root directory"));
+    QString s = QFileDialog::getExistingDirectory(
+                this, tr("Select images root directory"), img_root_dir);
 
     if (! s.isEmpty()) {
         img_root_dir = s;
@@ -1881,11 +1885,11 @@ void UmlWindow::setFontSize(int i)
 
     if (prj != 0) {
         if (!prj->is_writable() &&
-            (msg_warning("DoUML",
-                         TR("Project file is read-only, new font "
-                            "size will not be saved, continue ?\n"),
-                         QMessageBox::Yes, QMessageBox::No)
-             != QMessageBox::Yes))
+                (msg_warning("DoUML",
+                             TR("Project file is read-only, new font "
+                                "size will not be saved, continue ?\n"),
+                             QMessageBox::Yes, QMessageBox::No)
+                 != QMessageBox::Yes))
             return;
 
         prj->package_modified();
@@ -1938,11 +1942,11 @@ void UmlWindow::setFormat(int i)
 
     if (prj != 0) {
         if (!prj->is_writable() &&
-            (msg_warning("DoUML",
-                         TR("Project file is read-only, default "
-                            "format will not be saved, continue ?\n"),
-                         QMessageBox::Yes, QMessageBox::No)
-             != QMessageBox::Yes))
+                (msg_warning("DoUML",
+                             TR("Project file is read-only, default "
+                                "format will not be saved, continue ?\n"),
+                             QMessageBox::Yes, QMessageBox::No)
+                 != QMessageBox::Yes))
             return;
 
         format = (CanvasFormat) i;
@@ -2035,8 +2039,8 @@ void UmlWindow::cpp_generate()
     if (prj != 0)
         ToolCom::run((verbose_generation())
                      ? ((preserve) ? "cpp_generator -v -p" : "cpp_generator -v")
-                         : ((preserve) ? "cpp_generator -p" : "cpp_generator"),
-                         prj);
+                     : ((preserve) ? "cpp_generator -p" : "cpp_generator"),
+                     prj);
 }
 
 void UmlWindow::java_generate()
@@ -2047,8 +2051,8 @@ void UmlWindow::java_generate()
     if (prj != 0)
         ToolCom::run((verbose_generation())
                      ? ((preserve) ? "java_generator -v -p" : "java_generator -v")
-                         : ((preserve) ? "java_generator -p" : "java_generator"),
-                         prj);
+                     : ((preserve) ? "java_generator -p" : "java_generator"),
+                     prj);
 }
 
 void UmlWindow::php_generate()
@@ -2059,8 +2063,8 @@ void UmlWindow::php_generate()
     if (prj != 0)
         ToolCom::run((verbose_generation())
                      ? ((preserve) ? "php_generator -v -p" : "php_generator -v")
-                         : ((preserve) ? "php_generator -p" : "php_generator"),
-                         prj);
+                     : ((preserve) ? "php_generator -p" : "php_generator"),
+                     prj);
 }
 
 void UmlWindow::python_generate()
@@ -2071,8 +2075,8 @@ void UmlWindow::python_generate()
     if (prj != 0)
         ToolCom::run((verbose_generation())
                      ? ((preserve) ? "python_generator -v -p" : "python_generator -v")
-                         : ((preserve) ? "python_generator -p" : "python_generator"),
-                         prj);
+                     : ((preserve) ? "python_generator -p" : "python_generator"),
+                     prj);
 }
 
 void UmlWindow::idl_generate()
@@ -2223,11 +2227,11 @@ void UmlWindow::help()
         read_doumlrc();
 
     const char * topic =
-        (browser->get_project() == 0)
-        ? "starting"
-        : ((BrowserView::selected_item() == 0)
-           ? "browseritems"
-           : BrowserView::selected_item()->help_topic());
+            (browser->get_project() == 0)
+            ? "starting"
+            : ((BrowserView::selected_item() == 0)
+               ? "browseritems"
+               : BrowserView::selected_item()->help_topic());
 
     HelpDialog::show(topic);
 
@@ -2385,12 +2389,35 @@ void UmlWindow::OnPickSelectionFromItem(const QModelIndex & current, const QMode
     itemAsNode->select_in_browser();
 }
 
+void UmlWindow::OnChooseQuickEditMode(Q3ListViewItem* item)
+{
+    if(!item)
+        return;
+    //TreeItemInterface *itemAsInterface = static_cast<TreeItemInterface*>(current.internalPointer());
+    //    if(!itemAsInterface)
+    //        return;
+    BrowserNode* itemAsNode = static_cast<BrowserNode*>(item);
+    if(!itemAsNode)
+        return;
+    if(quickEdit->ValidType(itemAsNode))
+        tbQuickEdit->setEnabled(true);
+    else
+        tbQuickEdit->setEnabled(false);
+
+}
+
 void UmlWindow::OnShowQuickEdit()
 {
     if(quickEdit->isVisible())
         quickEdit->close();
     else
         quickEdit->OnShow();
+}
+
+void UmlWindow::OnCallClipboardMenu()
+{
+    An<ClipboardManager> clipboard;
+    clipboard->GetMenuInstance()->popup(QCursor::pos());
 }
 
 void UmlWindow::whats_this() const

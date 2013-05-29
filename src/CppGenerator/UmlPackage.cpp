@@ -80,8 +80,10 @@ static WrapperStr relative_path(const QDir & destdir, WrapperStr relto)
     QDir fromdir(relto);
     /*WrapperStr from = WrapperStr(fromdir.absPath());
     WrapperStr to = WrapperStr(destdir.absPath());*/
-    const char * cfrom = fromdir.absolutePath().toAscii().constData();
-    const char * cto = destdir.absolutePath().toAscii().constData();
+    QByteArray fromBa = fromdir.absolutePath().toAscii();
+    QByteArray toBa = destdir.absolutePath().toAscii();
+    const char * cfrom = fromBa.constData();
+    const char * cto = toBa.constData();
     int lastsep = -1;
     int index = 0;
 
@@ -204,8 +206,9 @@ WrapperStr UmlPackage::source_path(const WrapperStr & f, WrapperStr relto)
     if (! d.exists())
         create_directory(dir.src);	// don't return on error
 
+    QByteArray temp = d.filePath(f).toAscii();
     WrapperStr df = (dir.src_absolute || relto.isEmpty())
-                   ? WrapperStr(d.filePath(f).toAscii().constData())
+                   ? WrapperStr(temp.constData())
                    : relative_path(d, relto) + f;
 
     return df + WrapperStr(".") + CppSettings::sourceExtension();
@@ -242,9 +245,10 @@ WrapperStr UmlPackage::header_path(const WrapperStr & f, WrapperStr relto)
 
     if (! d.exists())
         create_directory(dir.h);	// don't return on error
+    QByteArray temp = d.filePath(f).toAscii();
 
     WrapperStr df = (dir.h_absolute || relto.isEmpty())
-                   ? WrapperStr(d.filePath(f).toAscii().constData())
+                   ? WrapperStr(temp.constData())
                    : relative_path(d, relto) + f;
 
     return df + WrapperStr(".") + CppSettings::headerExtension();
